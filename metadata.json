@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Mailflow",
+  "description": "AI-powered email campaign and communication manager with templates and SMTP integration.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

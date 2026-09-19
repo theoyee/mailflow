@@ -6,7 +6,19 @@ import { Send, Sparkles, X, Paperclip, Loader2, FileText } from 'lucide-react';
 export default function ComposePage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('email_templates');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
 
   const [subject, setSubject] = useState('');
   const [to, setTo] = useState('');
@@ -29,10 +41,6 @@ export default function ComposePage() {
       if (data.length > 0) setAccountId(data[0].id);
     });
     getContacts().then(setContacts);
-
-    // Load templates
-    const savedTemplates = localStorage.getItem('email_templates');
-    if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
   }, []);
 
   async function generateAiContent() {

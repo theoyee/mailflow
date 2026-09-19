@@ -1,9 +1,9 @@
 import { AdminLicenseManager } from '@/components/AdminLicenseManager';
 
 export const metadata = {
-  title: 'Admin License Management | Mailflow',
+  title: 'Admin License Generator | Mailflow',
 };
 
-export default function LicenseAdminPage() {
+export default function AdminLicensePage() {
   return <AdminLicenseManager />;
 }

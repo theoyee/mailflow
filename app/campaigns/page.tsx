@@ -7,7 +7,19 @@ import { cn } from '@/lib/utils';
 export default function CampaignsPage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('email_templates');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
 
   const [accountId, setAccountId] = useState('');
   const [subject, setSubject] = useState('');
@@ -23,8 +35,6 @@ export default function CampaignsPage() {
       setAccounts(data);
       if (data.length > 0) setAccountId(data[0].id);
     });
-    const savedTemplates = localStorage.getItem('email_templates');
-    if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
   }, []);
 
   function loadTemplate(id: string) {

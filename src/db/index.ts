@@ -6,26 +6,178 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+// In-memory mock store when PostgreSQL is not configured
+const inMemoryStore = {
+  users: [] as any[],
+  licenses: [] as any[],
+  devices: [] as any[],
+  userIdCounter: 1,
+  licenseIdCounter: 1,
+  deviceIdCounter: 1,
+};
+
+function createMockDb() {
+  return {
+    select: () => ({
+      from: (table: any) => {
+        const tableName = table?.[Symbol.for('drizzle:Name')] || table?._?.name || '';
+        const getList = () => {
+          if (tableName.includes('user')) return inMemoryStore.users;
+          if (tableName.includes('license')) return inMemoryStore.licenses;
+          if (tableName.includes('device')) return inMemoryStore.devices;
+          return [];
+        };
+        const items = getList();
+        return {
+          where: (_condition: any) => ({
+            limit: (n: number) => Promise.resolve(items.slice(0, n)),
+            then: (resolve: any) => Promise.resolve(items).then(resolve),
+          }),
+          limit: (n: number) => Promise.resolve(items.slice(0, n)),
+          then: (resolve: any) => Promise.resolve(items).then(resolve),
+        };
+      },
+    }),
+    insert: (table: any) => ({
+      values: (val: any) => {
+        const tableName = table?.[Symbol.for('drizzle:Name')] || table?._?.name || '';
+        const record = { ...val };
+        if (tableName.includes('user')) {
+          record.id = inMemoryStore.userIdCounter++;
+          record.createdAt = new Date();
+          inMemoryStore.users.push(record);
+        } else if (tableName.includes('license')) {
+          record.id = inMemoryStore.licenseIdCounter++;
+          record.createdAt = new Date();
+          inMemoryStore.licenses.push(record);
+        } else if (tableName.includes('device')) {
+          record.id = inMemoryStore.deviceIdCounter++;
+          record.createdAt = new Date();
+          inMemoryStore.devices.push(record);
+        }
+        return {
+          returning: () => Promise.resolve([record]),
+          then: (resolve: any) => Promise.resolve([record]).then(resolve),
+        };
+      },
+    }),
+    query: new Proxy({}, {
+      get: () => ({
+        findMany: async () => [],
+        findFirst: async () => null,
+      }),
+    }),
+  } as any;
+}
+
+export const getNeonConnectionString = (): string | null => {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.NEON_DATABASE_URL) return process.env.NEON_DATABASE_URL;
+  if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
+  if (process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_PASSWORD) {
+    const dbName = process.env.SQL_DB_NAME || 'neondb';
+    return `postgresql://${encodeURIComponent(process.env.SQL_USER)}:${encodeURIComponent(process.env.SQL_PASSWORD)}@${process.env.SQL_HOST}/${dbName}?sslmode=require`;
+  }
+  return null;
+};
+
+export const hasPostgresConfig = (): boolean => {
+  return Boolean(getNeonConnectionString() || process.env.SQL_HOST || process.env.PGHOST);
+};
+
 export const createPool = () => {
   if (!global._postgresPool) {
-    // Look for this block and add ssl: true
-    global._postgresPool = new Pool({
-      host: process.env.SQL_HOST,
-      user: process.env.SQL_USER,
-      password: process.env.SQL_PASSWORD,
-      database: process.env.SQL_DB_NAME,
-      max: 10,
-      connectionTimeoutMillis: 15000,
-      ssl: true, // <-- YOU MUST ADD THIS
-    });
+    const connString = getNeonConnectionString();
+    if (connString) {
+      // Neon connection string
+      global._postgresPool = new Pool({
+        connectionString: connString,
+        ssl: { rejectUnauthorized: false },
+        max: 10,
+        connectionTimeoutMillis: 15000,
+      });
+    } else if (process.env.SQL_HOST || process.env.PGHOST) {
+      global._postgresPool = new Pool({
+        host: process.env.SQL_HOST || process.env.PGHOST,
+        user: process.env.SQL_USER || process.env.PGUSER,
+        password: process.env.SQL_PASSWORD || process.env.PGPASSWORD,
+        database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
+        port: Number(process.env.PGPORT) || 5432,
+        max: 10,
+        connectionTimeoutMillis: 15000,
+        ssl: { rejectUnauthorized: false },
+      });
+    }
 
-    global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
-    });
+    if (global._postgresPool) {
+      global._postgresPool.on('error', (err) => {
+        console.error('Unexpected error on Neon/PostgreSQL pool client:', err);
+      });
+    }
   }
   return global._postgresPool;
 };
 
-const pool = createPool();
+let initializedTables = false;
+export async function ensureNeonTables() {
+  if (initializedTables) return;
+  const pool = createPool();
+  if (!pool) return;
 
-export const db = drizzle(pool, { schema });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS licenses (
+          id SERIAL PRIMARY KEY,
+          license_key TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          device_limit INTEGER NOT NULL DEFAULT 3,
+          activations INTEGER NOT NULL DEFAULT 0,
+          label TEXT,
+          expires_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS admins (
+          id SERIAL PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          name TEXT,
+          role TEXT DEFAULT 'admin',
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      initializedTables = true;
+      console.log('[Neon PostgreSQL] Schema tables verified and ready.');
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.warn('[Neon PostgreSQL] Failed to ensure tables:', err);
+  }
+}
+
+let db: any;
+
+if (hasPostgresConfig()) {
+  try {
+    const pool = createPool();
+    if (pool) {
+      db = drizzle(pool, { schema });
+      // Trigger table creation non-blocking
+      ensureNeonTables().catch((e) => console.warn('[Neon] Init error:', e));
+    } else {
+      db = createMockDb();
+    }
+  } catch (err) {
+    console.warn('[AI Studio] PostgreSQL/Neon not connected — using mock db', err);
+    db = createMockDb();
+  }
+} else {
+  db = createMockDb();
+}
+
+export { db };
+

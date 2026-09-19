@@ -54,3 +54,15 @@ export const campaigns = sqliteTable('campaigns', {
   status: text('status').notNull(), // active, paused, completed
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
+
+export const licenses = sqliteTable('licenses', {
+  id: text('id').primaryKey(),
+  licenseKey: text('license_key').notNull().unique(),
+  type: text('type').notNull(), // lifetime, annual, trial
+  status: text('status').notNull().default('active'), // active, revoked, expired
+  deviceLimit: integer('device_limit').notNull().default(3),
+  activations: integer('activations').notNull().default(0),
+  label: text('label'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});

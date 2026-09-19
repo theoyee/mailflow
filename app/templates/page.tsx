@@ -3,14 +3,21 @@ import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, Save } from 'lucide-react';
 
 export default function TemplatesPage() {
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('email_templates');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
   const [isAdding, setIsAdding] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('email_templates');
-    if (saved) setTemplates(JSON.parse(saved));
-  }, []);
 
   function saveTemplate() {
     if (!newTemplate.name || !newTemplate.subject || !newTemplate.body) return;
