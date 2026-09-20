@@ -1,13 +1,18 @@
-import { sqliteDb } from '@/src/db/sqlite';
-import { emails } from '@/src/db/sqlite-schema';
-import { desc } from 'drizzle-orm';
+import { listAllEmails } from '@/src/db/mail-repo';
 
 // This forces Next.js to fetch fresh data every time you load the page
 export const dynamic = 'force-dynamic';
 
 export default async function Sent() {
-  // Fetch all emails from your local SQLite database, newest first
-  const sentEmails = await sqliteDb.select().from(emails).orderBy(desc(emails.createdAt));
+  // Fetch sent emails with safe fallback
+  let sentEmails: any[] = [];
+  try {
+    const all = await listAllEmails();
+    sentEmails = all.filter((e) => e.status === 'sent');
+  } catch (err) {
+    console.error('Failed to load sent emails:', err);
+    sentEmails = [];
+  }
 
   return (
     <div className="p-8 h-full flex flex-col max-w-6xl mx-auto">

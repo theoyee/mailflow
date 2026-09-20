@@ -3,14 +3,29 @@ import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from './sqlite-schema';
 import path from 'path';
 
-// For Electron, we want to store the DB in the app's userData path.
-// But for development/Next.js side, we might just use a local file if running outside Electron.
-// To keep it simple in AI Studio preview, we'll use a local file.
-const dbPath = typeof window !== 'undefined' ? 'file:local.db' : 'file:local.db';
+// For Electron or local Node, store in local.db
+// For Vercel or serverless environments, the filesystem is read-only except /tmp
+function getSqliteDbPath(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return 'file:/tmp/local.db';
+  }
+  return 'file:local.db';
+}
 
-export const sqliteClient = createClient({
-  url: dbPath,
-});
+function initSqliteClient() {
+  try {
+    return createClient({
+      url: getSqliteDbPath(),
+    });
+  } catch (err) {
+    console.warn('[SQLite] Fallback in-memory client due to:', err);
+    return createClient({
+      url: ':memory:',
+    });
+  }
+}
+
+export const sqliteClient = initSqliteClient();
 
 export const sqliteDb = drizzle(sqliteClient, { schema });
 

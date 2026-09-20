@@ -1,12 +1,17 @@
-import { sqliteDb } from '@/src/db/sqlite';
-import { emails } from '@/src/db/sqlite-schema';
-import { eq, desc } from 'drizzle-orm';
+import { listAllEmails } from '@/src/db/mail-repo';
 import { CalendarClock } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ScheduledPage() {
-  const scheduledEmails = await sqliteDb.select().from(emails).where(eq(emails.status, 'scheduled')).orderBy(desc(emails.createdAt));
+  let scheduledEmails: any[] = [];
+  try {
+    const all = await listAllEmails();
+    scheduledEmails = all.filter((e) => e.status === 'scheduled');
+  } catch (err) {
+    console.error('Failed to load scheduled emails:', err);
+    scheduledEmails = [];
+  }
 
   return (
     <div className="p-8 h-full flex flex-col max-w-6xl mx-auto">

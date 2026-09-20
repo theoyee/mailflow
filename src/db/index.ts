@@ -148,6 +148,50 @@ export async function ensureNeonTables() {
           role TEXT DEFAULT 'admin',
           created_at TIMESTAMP DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS smtp_accounts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          host TEXT NOT NULL,
+          port INTEGER NOT NULL,
+          secure BOOLEAN NOT NULL DEFAULT false,
+          "user" TEXT NOT NULL,
+          password TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS contacts (
+          id TEXT PRIMARY KEY,
+          first_name TEXT,
+          last_name TEXT,
+          email TEXT NOT NULL UNIQUE,
+          company TEXT,
+          position TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS emails (
+          id TEXT PRIMARY KEY,
+          account_id TEXT,
+          subject TEXT NOT NULL,
+          body TEXT NOT NULL,
+          "to" TEXT NOT NULL,
+          cc TEXT,
+          bcc TEXT,
+          status TEXT NOT NULL DEFAULT 'sent',
+          scheduled_at TIMESTAMP,
+          sent_at TIMESTAMP,
+          thread_id TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          template_id TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          created_at TIMESTAMP DEFAULT NOW()
+        );
       `);
       initializedTables = true;
       console.log('[Neon PostgreSQL] Schema tables verified and ready.');

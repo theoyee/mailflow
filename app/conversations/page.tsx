@@ -1,6 +1,4 @@
-import { sqliteDb } from '@/src/db/sqlite';
-import { emails } from '@/src/db/sqlite-schema';
-import { desc } from 'drizzle-orm';
+import { listAllEmails } from '@/src/db/mail-repo';
 import { MessageSquare, Search, User, Clock, ArrowLeft, Send } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -11,8 +9,14 @@ export default async function Conversations({ searchParams }: { searchParams: Pr
   const resolvedParams = await searchParams;
   const selectedContact = resolvedParams?.contact;
 
-  // Fetch all emails from the database, newest first
-  const allEmails = await sqliteDb.select().from(emails).orderBy(desc(emails.createdAt));
+  // Safely fetch all emails from the database, newest first
+  let allEmails: any[] = [];
+  try {
+    allEmails = await listAllEmails();
+  } catch (err) {
+    console.error('Failed to load emails for conversations:', err);
+    allEmails = [];
+  }
 
   // Group emails by recipient ('to' address) to form "threads"
   const threadsMap = new Map<string, typeof allEmails>();

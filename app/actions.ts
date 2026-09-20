@@ -1,35 +1,21 @@
 "use server";
 
-import { sqliteDb } from '@/src/db/sqlite';
-import { smtpAccounts, contacts, campaigns } from '@/src/db/sqlite-schema';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  insertSmtpAccount,
+  listAllSmtpAccounts,
+  insertContact,
+  listAllContacts,
+} from '@/src/db/mail-repo';
 import { revalidatePath } from 'next/cache';
 
 export async function addSmtpAccount(data: { name: string; host: string; port: number; secure: boolean; user: string; pass: string }) {
-  const id = uuidv4();
-
-  // In a real desktop app, we would use IPC to save the password securely to OS Keychain
-  // For the demo, we are omitting the password column from plain-text SQLite.
-  // We'll store a placeholder or just assume IPC handles it.
-
-  // await sqliteDb.insert(smtpAccounts).values({
-  //   id,
-  //   name: data.name,
-  //   host: data.host,
-  //   port: data.port,
-  //   secure: data.secure,
-  //   user: data.user,
-  // });
-
-
-  await sqliteDb.insert(smtpAccounts).values({
-    id,
+  await insertSmtpAccount({
     name: data.name,
     host: data.host,
     port: data.port,
     secure: data.secure,
     user: data.user,
-    password: data.pass, // <-- ADD THIS LINE
+    password: data.pass,
   });
 
   revalidatePath('/settings/smtp');
@@ -37,18 +23,32 @@ export async function addSmtpAccount(data: { name: string; host: string; port: n
 }
 
 export async function getSmtpAccounts() {
-  return await sqliteDb.select().from(smtpAccounts);
+  try {
+    return await listAllSmtpAccounts();
+  } catch (err) {
+    console.error('Failed to get SMTP accounts:', err);
+    return [];
+  }
 }
 
 export async function addContact(data: { firstName: string; lastName: string; email: string; company?: string; position?: string }) {
-  await sqliteDb.insert(contacts).values({
-    id: uuidv4(),
-    ...data,
+  await insertContact({
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    company: data.company,
+    position: data.position,
   });
+
   revalidatePath('/contacts');
   return { success: true };
 }
 
 export async function getContacts() {
-  return await sqliteDb.select().from(contacts);
+  try {
+    return await listAllContacts();
+  } catch (err) {
+    console.error('Failed to get contacts:', err);
+    return [];
+  }
 }

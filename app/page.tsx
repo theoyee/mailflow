@@ -1,6 +1,4 @@
-import { sqliteDb } from '@/src/db/sqlite';
-import { emails } from '@/src/db/sqlite-schema';
-import { desc } from 'drizzle-orm';
+import { listAllEmails } from '@/src/db/mail-repo';
 import { Inbox, Search, Mail, Clock, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -11,8 +9,15 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const resolvedParams = await searchParams;
   const selectedId = resolvedParams?.id;
 
-  // Fetch emails from the local database (newest first)
-  const allEmails = await sqliteDb.select().from(emails).orderBy(desc(emails.createdAt));
+  // Safely fetch emails from Neon/SQLite database with fallback
+  let allEmails: any[] = [];
+  try {
+    allEmails = await listAllEmails();
+  } catch (err) {
+    console.error('Failed to load emails for Inbox:', err);
+    allEmails = [];
+  }
+
   const selectedEmail = selectedId ? allEmails.find((e) => e.id === selectedId) : null;
 
   return (
